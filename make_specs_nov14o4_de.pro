@@ -1,25 +1,30 @@
-pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
+pro make_specs_nov14o4_de,pid=pid,maindir=maindir,fid=fid,de=de,noplot=noplot
 
-  ;  Make, save out and plot (default) histogram of event grades for
-  ;  whole FoV and each individual regions within the P1 and P2 pointings from Nov 2014
+  ;  Make the spectra (energy,x,y) for orbit 4 data in P1 or P2 over the whole FoV and
+  ;  each of the chosen regions using an energy binning of de between 1.6 and 10 keV
   ;
-  ;  Start by filtering out the "bad" pixels in FPMA and only CHU23 (P1,P2) (P3 CHU23, P4 CHU13)
-  ;  Shift P1 so matches P2 pointing
+  ;  Starts by filtering out out "bad" pixels in FPMA and only the one CHU time CHU23 (P1,P2) and then
+  ;  only those in Grade 0 (to make sure have only single pixel hit events). We also get the livetime
+  ;  correction and shift pointing so all match P2 before saving it all out
   ;
   ;         Optional inputs:
   ;         pid       - 1=P1 (default) or 2=P2 ?
   ;         fid       - A (default) or B?
+  ;         de        - Energy binning of spectrum (default 0.2keV)
   ;         maindir   - Where Nov data is kept - maindir of the ftp structed dirs
   ;         noplot    - Keyword not to produce plot of histograms
   ;                   - Need >8.0 to do the plots (was done on v8.5)
   ;
-  ;  Assumes that make_roi_nov14.pro has already been run, so roi_nov14.dat exists in out_files/
+  ; Assumes that make_roi_nov14.pro has already been run, so roi_nov14.dat exists in out_files/
   ;
-  ; 05-11-2015 IGH
+  ; 06-11-2015 IGH
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   if (n_elements(pid) ne 1) then pid=1
   pname='P'+string(pid,format='(i1)')
+
+  if (n_elements(de) ne 1) then de=0.2
+  denm='DE'+strmid(string(1000+de*100,format='(i4)'),1,3)
 
   if (n_elements(fid) ne 1) then fid='A'
 
@@ -28,7 +33,6 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
   if (n_elements(maindir) ne 1) then maindir='~/data/ns_data/obs2_bg2/
 
   ; Names of the subdirectories per pointing of orbit 4
-  ; ONly really need P1 and P2 here but might as well keep in the P
   sdirs=['20012001_Sol_14305_AR2192_1/','20012002_Sol_14305_AR2192_2/',$
     '20012003_Sol_14305_AR2192_3/','20012004_Sol_14305_AR2192_4/']
   subdir=sdirs[pid-1]
@@ -39,6 +43,11 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
   chumask=chm[pid-1]
   chunam=chmn[pid-1]
 
+  ; These were manally found
+  ; The original P2 one from BG
+  ; Assume P3 the same as same CHU as P2 and not obvious features for matching to AIA
+  ; P1 from IGH found in comparison to AIA 94/335
+  ; P4 from IGH found in comparison to AIA 94/335 but from previous orbits (as no features in this orbit)
   xcs=[690,710,710,605]
   ycs=[-19,-19,-19,46]
   xc=xcs[1]; using P2 as refernce map centre
@@ -74,9 +83,13 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
     evt=evt[where(use)]
   endif
 
+  ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ; Filter out just the grade 0 events
+  evt=evt[where(evt.grade eq 0)]
 
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ; Doing it in just one CHU so can filter out other CHU as well
+  ; Based on https://github.com/NuSTAR/nustar_solar/blob/master/solar_mosaic_20141211/solar_mosaic_hk.pro
   chufile = file_search(maindir+subdir+ddname+'/hk/', '*chu123.fits')
   for chunum= 1, 3 do begin
     chu = mrdfits(chufile, chunum)
@@ -99,9 +112,32 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
   chu_comb = round(interpol(mask, chu.time, evt.time))
 
   ; filter out bad CHUs
-  ida2=where(chu_comb eq chumask)
-  evt=evt[ida2]
-  ;  engs=1.6+0.04*evt.pi
+  chu_filt=where(chu_comb eq chumask,nchu)
+  evt=evt[chu_filt]
+
+  ; What fraction of the "good" grade 0 events were in our chosen CHU combination ?
+  inchu_frac=nchu/(n_elements(chu_comb)*1.0)
+
+  ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ; Get the livetime info
+  hk_file=maindir+subdir+ddname+'/hk/nu'+ddname+fid+'_fpm.hk'
+  hk = mrdfits(hk_file, 1, hkhdr)
+  ; NuSTAR times are seconds from 01-Jan-2010 so convert to which anytim format
+  hktims=anytim(hk.time+anytim('01-Jan-2010'))
+
+  ; Assuming duration of observation is continous (etc no major jumps in CHU)
+  t1=anytim(min(evt.time)+anytim('01-Jan-2010'),/yoh)
+  t2=anytim(max(evt.time)+anytim('01-Jan-2010'),/yoh)
+  dur=max(evt.time)-min(evt.time)
+
+  lvid=where(hktims ge anytim(t1) and hktims lt anytim(t2))
+  lvtcor=mean(hk[lvid].livetime)
+
+  ; Can also get this information from the header file BUT again assumes continuous and gaps
+  ; Exposure=livetime=duration*livetime fraction
+  exploc=where(stregex(evth, "EXPOSURE",/boolean))
+  expos=abs((strsplit(evth[exploc],/extract))[1])
+  expos_dl=dur*lvtcor
 
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ; Setup the pixel and binning sizes
@@ -116,25 +152,29 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
   centery = round(yc / pix_size) + npix * 0.5
   im_size = 1037. / pix_size
   im_width = round(im_size * 2.)
-  
-  ; grade binning
-  ; 0 to 32
-  ngrd=33
+
+  ; energy binning for output spectrum/datacube
+  maxe=10.
+  mine=1.6
+  eid=mine+de*indgen(2+(maxe-mine)/de)
+  mide=get_edges(eid,/mean)
+  nengs=n_elements(mide)
+
+  ims=intarr(nengs,1688,1688)
 
   ; Shifts relative to P2 pointing position - as that matches AIA
   ; Rememeber in this one the X is still opposite direction to S/C X (so need to *-1)
   xshf=-1*round((xcs[1]-xcs[pid-1])/pix_size)
   yshf=round((ycs[1]-ycs[pid-1])/pix_size)
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ; Do the histograms of the grades per pixel
-  ims=intarr(ngrd,1688,1688)
-
+  ; Create the data cube
+  evtengs=1.6+0.04*evt.pi
   evtx=evt.x-xshf
   evty=evt.y-yshf
 
-  for i=0, ngrd-1 do begin
-    ide=where(evt.grade eq i,nid)
-  ;  print,i
+  for i=0, nengs-1 do begin
+    ide=where(evtengs ge eid[i] and evtengs lt eid[i+1],nid)
+    print,eid[i],' --- ',eid[i+1]
     if (nid gt 1) then begin
       ; this data still  has the x opposite direction to standard solar coords
       pixinds = (npix - evtx[ide]) + evty[ide] * npix
@@ -144,6 +184,7 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
       ims[i,*,*] = im
     endif
     if (nid eq 1) then begin
+      ; this data still  has the x opposite direction to standard solar coords
       pixinds = (npix - evtx[ide]) + evty[ide] * npix
       im_hist = lonarr(npix*npix)
       im_hist[pixinds]=1
@@ -153,12 +194,14 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
     endif
   endfor
 
+
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ; Can take an even smaller region which covers all 4 pointings
+  ; Save all this out
   npp=n_elements(ims[0,0,*])
+  ; Can take an even smaller region which covers all 4 pointings
+  ; file output should then "only" be about 0.6GB not 2.6GB!
   subx=[300,1200]
   suby=[550,1450]
-
   ims=ims[*,subx[0]:subx[1],suby[0]:suby[1]]
 
   pxs=pix_size
@@ -169,16 +212,14 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
   newyc=y0+0.5*n_elements(ims[0,0,*])*pxs
 
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ; Histogram the grades
-  grades=indgen(ngrd)
-  grd_hist_all=reform(total(total(ims,2),2))
-  g2124_g0_all=total(ims[21:24,*,*])/(total(ims[0,*,*])*1.0)
+  ; Make spectra out of the data cube
+
+  spec_all=reform(total(total(ims,2),2))
 
   ; loads in the roi, xcsp, ycsp,rnm,wid
   restore,file='out_files/roi_no14.dat'
   nr=n_elements(rnm)
-  grd_hist_reg=fltarr(nr,ngrd)
-  g2124_g0_reg=fltarr(nr)
+  spec_reg=fltarr(nr,nengs)
 
   ; Convert region coords from S/C arcsec to pixels in ims
   xcs=round((xcsp-x0)/pxs)
@@ -191,57 +232,42 @@ pro make_gradehist_nov14o4,pid=pid,maindir=maindir,noplot=noplot,fid=fid
 
   nids=n_elements(ids)
 
-  ; Histograms per each region
+  ; Spectrum per each region
   print,pname+' FPM'+fid
-  print, 'FoV',total(ims),total(ims[0,*,*]),total(ims[21:24,*,*]),' ',$
-    string(total(ims[21:24,*,*])/total(ims[0,*,*]),format='(e9.3)')
   for i=0, nids-1 do begin
     r=ids[i]
     xr=xcs[r]+0.5*[-iwid,iwid]
     yr=ycs[r]+0.5*[-iwid,iwid]
-    gtemp=ims[*,xr[0]:xr[1],yr[0]:yr[1]]
-    grd_hist_reg[r,*]=reform(total(total(gtemp,2),2))  
-    g2124_g0_reg[r]=total(gtemp[21:24,*,*])/total(gtemp[0,*,*])
-    
-    print,rnm[r],total(gtemp),total(gtemp[0,*,*]),total(gtemp[21:24,*,*]),' ',$
-      string(total(gtemp[21:24,*,*])/total(gtemp[0,*,*]),format='(e9.3)')
-    
+    spec_reg[r,*]=reform(total(total(ims[*,xr[0]:xr[1],yr[0]:yr[1]],2),2))
+
   endfor
-  ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ; Save out the information
-    grd_out={pname:pname,fpm:'FPM'+fid,grades:grades,$
-    grd_hist_all:grd_hist_all,g2124_g0_all:g2124_g0_all,$
-    reg_nm:rnm,grd_hist_reg:grd_hist_reg,g2124_g0_reg:g2124_g0_reg}
-    
-  save,file='out_files/grds_'+pname+'FPM'+fid+'.dat',grd_out
+
+  spc_out={pname:pname,fpm:'FPM'+fid,chu:chunam,inchu_frac:inchu_frac,$
+    t1:t1,t2:t2,dur:dur,lvt_frac:lvtcor,expos:expos,expos_dl:expos_dl,$
+    engs:mide,eng_edges:eid,spec_all:spec_all,$
+    reg_nm:rnm,spec_reg:spec_reg}
+
+  save,file='out_files/specs_'+denm+'_'+pname+'FPM'+fid+'.dat',spc_out
 
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ; Plot it out if have new enough idl and no /noplot
   if (keyword_set(noplot) ne 1 and float(!version.release) ge 8.0) then begin
-    w=window(dimensions=[900,450],/buffer)
-    ;    p0=plot(grades,grd_hist_all/total(grd_hist_all),/histogram,/ylog,title='FoV',$
-    ;      yrange=[1e-5,2],xrange=[-0.5,32.5],thick=2,xtitle='Grade',ytitle='Frequency',layout=[3,2,1],/current)
-    ;for i=0, nr-1 do !null=plot(grades,grd_hist_reg[i,*]/total(grd_hist_reg[i,*]),/histogram,/ylog,title=rnm[i],$
-    ;  yrange=[1e-5,2],xrange=[-0.5,32.5],thick=2,xtitle='Grade',ytitle='Frequency',layout=[3,2,2+i],/current)
+    w=window(dimensions=[900,600],/buffer)
     mrg=0.2
-    p0=barplot(grades,grd_hist_all,/ylog,axis_style=1,$
-      title='FoV, $G_{21-24}/G_0$='+string(g2124_g0_all*100.,format='(f6.3)')+'%',$
-      yrange=[0.5,1e5],xrange=[-3,35],xtitle='Grade',ytitle='Number',layout=[3,2,1],/current,margin=mrg)
-    yaxis=axis('Y',location='right',title='Freq',coord_transform=[0,total(grd_hist_all)],$
-      target=p0,tickunits='Scientific',color='grey')
-    for i=0, nr-1 do begin
-      zz=barplot(grades,grd_hist_reg[i,*],/ylog,axis_style=1,margin=mrg,$
-        title=rnm[i]+', $G_{21-24}/G_0$='+string(g2124_g0_reg[i]*100.,format='(f6.3)')+'%',$
-        yrange=[0.5,1e5],xrange=[-3,35],xtitle='Grade',ytitle='Number',layout=[3,2,2+i],/current)
-      if (total(grd_hist_reg[i,*]) gt 0.0) then $
-        yaxis=axis('Y',location='right',title='Freq',coord_transform=[0,1.0/total(grd_hist_reg[i,*])],$
-        target=zz,tickunits='Scientific',color='grey')
+    p0=plot(mide,spec_all,/ylog,title='FoV',/stair, margin=mrg,$
+      yrange=[0.5,1e5],xrange=[1.0,10.0],xtitle='Energy [keV]',ytitle='NuSTAR Counts',layout=[3,2,1],/current)
+    for i=0, nr-1 do zz=plot(mide,spec_reg[i,*],/ylog,/stair,margin=mrg, title=rnm[i],$
+      yrange=[0.5,1e5],xrange=[1.0,10.0],xtitle='Energy [keV]',ytitle='NuSTAR Counts',layout=[3,2,2+i],/current)
+    tt=text(0,2,pname+' FPM'+fid+' '+$
+      string(expos_dl,format='(f6.2)')+'s ('+string(dur,format='(f6.1)')+'s, '+$
+      string(lvtcor*100,format='(f5.2)')+'%)',/device,target=w)
 
-    endfor
-    tt=text(0,0,pname+' FPM'+fid,/device,target=w)
-
-    w.save,'figs/grade_hist_'+pname+'FPM'+fid+'.pdf',page_size=w.dimensions/100.
+    w.save,'figs/specs_'+pname+'FPM'+fid+'.pdf',page_size=w.dimensions/100.
     w.close
   endif
+  ;stop
+  ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 end
