@@ -1,6 +1,26 @@
 pro analysis_wip
 
-  ; firstly make sure the *.dat with the regions of interest co-ords are saved out
+  ; ################################################################
+  ; Produce the maps for each P1-P4 in >2keV, 2-4 keV and 4-6 keV
+  for pid=1,4 do make_map_nov14o4,pid=pid,erang=2
+  for pid=1,4 do make_map_nov14o4,pid=pid,erang=[2,4]
+  for pid=1,4 do make_map_nov14o4,pid=pid,erang=[4,6]
+
+  ; ################################################################
+  ; Figure 1
+  plot_livetime_orbit4_hsi
+  plot_maps_nov14o4
+
+  ; ################################################################
+  ; Figure 2
+  ; need the GOES/SXI and SDO/AIA maps not included
+  plot_aiasxi_maps_nov14o4
+
+  ; ################################################################
+  ; ################################################################
+  ; ################################################################
+  ; Spectra and livetime - analysis and some playing about with the grades/pile-up
+  ; Firstly make sure the *.dat with the regions of interest co-ords are saved out
   make_roi_nov14
 
   ; Then make the grade histograms per fov and region
@@ -39,6 +59,17 @@ pro analysis_wip
   fitvth_spec_nov14o4,pid=2,fid='A',regid=2
   fitvth_spec_nov14o4,pid=2,fid='B',regid=0
   fitvth_spec_nov14o4,pid=2,fid='B',regid=2
-  
+
+  ; ################################################################
+  ; ################################################################
+  ; ################################################################
+  ; Figure 3
+  plot_fitted_specs_p1
+
+  ; ################################################################
+  ; Figure 4
+  plot_fitted_specs_p2
+
+
   stop
 end
