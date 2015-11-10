@@ -3,7 +3,6 @@ pro plot_fitted_specs_p1,plter=plter,de=de
   ; PLot showing the regions selected in P1 and the resulting spectra and fits for FPMA and FPMB
   ; Assumes make_map_nov14o4.pro and fitvth_spec_nov14o4.pro has already been run
   ;
-  ; Will also need tvim.pro from the esrg package
   ;
   ; Optional inputs:
   ;   de        - Energy binning of spectrum (default 0.2keV)
@@ -44,12 +43,6 @@ pro plot_fitted_specs_p1,plter=plter,de=de
   b[1]=255
   tvlct,r,g,b
 
-  set_plot,'ps'
-  device, /encapsulated, /color, /isolatin1,/inches, $
-    bits=8, xsize=12, ysize=7,file='figs/fittedSpecsall_'+pname+'_'+intnam+'.eps'
-  !p.charsize=2.0
-  dfac=1.
-  dfac0=1.
 
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ; Load in the maps, plot and then overplot the selected regions
@@ -68,8 +61,20 @@ pro plot_fitted_specs_p1,plter=plter,de=de
   ycspa=(ycsp-ya0)/mma.dx
   wida=wid/mma.dx
 
-  tvim,alog10(gauss_smooth(mall,3)),range=[-2,1],$
-    pcharsize=0.01,position=[0.01,0.62,0.35,0.92],/noframe
+  mm=alog10(gauss_smooth(mall,3))
+  bscale,mm,min=-2,max=1
+
+  set_plot,'ps'
+  device, /encapsulated, /color, /isolatin1,/inches, $
+    bits=8, xsize=12, ysize=7,file='figs/fittedSpecsall_'+pname+'_'+intnam+'.eps'
+  !p.charsize=2.0
+  dfac=1.
+  dfac0=1.
+
+  ; Personally do this via tvim but not under standard ssw install, so using plot_image instead
+  plot_image,mm,position=[0.01,0.62,0.35,0.92],bottom=1,xstyle=5,ystyle=5
+  ;  tvim,alog10(gauss_smooth(mall,3)),range=[-2,1],$
+  ;    pcharsize=0.01,position=[0.01,0.62,0.35,0.92],/noframe
   for i=0,nr-1 do box_igh,xcspa[i],ycspa[i],wida,color=0,thick=2
   for i=0,nr-1 do box_igh,xcspb[i],ycspa[i],wida,color=0,thick=2
   for i=0,nr-1 do xyouts,xcspa[i]+0.5*wida+5,ycspa[i]-0.5*wida-5,rnm[i],color=0,chars=0.8
