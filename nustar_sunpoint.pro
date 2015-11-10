@@ -44,6 +44,7 @@ function nustar_sunpoint, offset, time=time, epoch_from=epoch_from, $
   dec1 = dec + xy1[1]
   ra1 = ra - xy1[0]/cos(dec/!radeg)
   ra = ra1 & dec = dec1
+  ; FK5 defined on J2000
   precess,ra,dec,epoch,epoch_to
   if n_elements(note) eq 1 then begin
     format = '(a20,2f10.3,a20)'
