@@ -3,6 +3,7 @@ pro plot_aiasxi_maps_nov14o4
   ; Produce comparison plots of the NuSTAR maps and SDO/AIA and GEOS/SXI
   ; FYI< the SXI and AIA maps aren't imcluded here and script just for
   ; reference as to how the figure is produced
+  ; The mean maps were produced by nov14o4_aia_mean_map.pro
   ;
   ; For some of the colour tables need IDL >8.0
   ;
