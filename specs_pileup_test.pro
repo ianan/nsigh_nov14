@@ -20,6 +20,7 @@ pro specs_pileup_test,pid=pid,fid=fid,de=de,noplot=noplot
   ; Still confused by the factor of 2(ish)
   ;
   ; 06-11-2015 IGH
+  ; 13-11-2015 IGH - Added in the fitted f_vth model for comparison
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   if (n_elements(pid) ne 1) then pid=1
@@ -27,6 +28,7 @@ pro specs_pileup_test,pid=pid,fid=fid,de=de,noplot=noplot
 
   if (n_elements(de) ne 1) then de=0.2
   denm='DE'+strmid(string(1000+de*100,format='(i4)'),1,3)
+  intnam='INT'+string(1000+100*(de),format='(i4)')
 
   if (n_elements(fid) ne 1) then fid='A'
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -40,6 +42,21 @@ pro specs_pileup_test,pid=pid,fid=fid,de=de,noplot=noplot
   specs=spc_out.spec_reg
   mide=spc_out.engs
   engs=spc_out.eng_edges
+  ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ; Load in the fitted spectra
+
+  spec_mod=fltarr(nr,nengs)
+
+  if (pid eq 1) then ids=indgen(5)
+  if (pid eq 2) then ids=[0,2]
+  nids=n_elements(ids)
+
+  for xx=0, nids-1 do begin
+    i=ids[xx]
+    restore,file='out_files/fitvth_'+pname+spc_out.reg_nm[i]+'FPM'+fid+'_'+intnam+'.dat'
+    spec_mod[i,*]=fit_out.cnt_mod
+
+  endfor
 
   ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ; Work out the pile-up factor as=0.25*total(grade 21-24)/total(grade 0)
@@ -88,6 +105,7 @@ pro specs_pileup_test,pid=pid,fid=fid,de=de,noplot=noplot
   id7=where(engs ge 7.)
 
   cnt_obs=intarr(3,5)
+  cnt_mod=fltarr(3,5)
   cnt_pile=fltarr(3,5)
   cnt_pile2=fltarr(3,5)
   cnt_pilecvl=fltarr(3,5)
@@ -97,6 +115,10 @@ pro specs_pileup_test,pid=pid,fid=fid,de=de,noplot=noplot
     cnt_obs[0,i]=total(specs[i,id5])
     cnt_obs[1,i]=total(specs[i,id6])
     cnt_obs[2,i]=total(specs[i,id7])
+
+    cnt_mod[0,i]=total(spec_mod[i,id5])
+    cnt_mod[1,i]=total(spec_mod[i,id6])
+    cnt_mod[2,i]=total(spec_mod[i,id7])
 
     cnt_pile[0,i]=total(pl_specs[i,id5])
     cnt_pile[1,i]=total(pl_specs[i,id6])
@@ -112,18 +134,43 @@ pro specs_pileup_test,pid=pid,fid=fid,de=de,noplot=noplot
   endfor
 
   print,pname,' FPM',fid
-  print, 'Observed'
-  for i=0, nr-1 do print,spc_out.reg_nm[i],' ',string(cnt_obs[*,i],format='(i5)')
+  print, 'Observed Counts'
 
-  print, 'Double shifted - IGH Scaling'
-  for i=0, nr-1 do print,spc_out.reg_nm[i],' ',string(cnt_pile[*,i],format='(f6.3)')
+  for xx=0, nids-1 do begin
+    i=ids[xx]
+    print,spc_out.reg_nm[i],' ',string(cnt_obs[*,i],format='(i5)')
+  endfor
 
-  print, 'Double shifted - DS Scaling'
-  for i=0, nr-1 do print,spc_out.reg_nm[i],' ',string(cnt_pile2[*,i],format='(f6.3)')
+  print, 'Model Counts'
+  for xx=0, nids-1 do begin
+    i=ids[xx]
+    print,spc_out.reg_nm[i],' ',string(cnt_mod[*,i],format='(f6.3)')
+  endfor
 
-  print, 'Convolved - DS Scaling'
-  for i=0, nr-1 do print,spc_out.reg_nm[i],' ',string(cnt_pilecvl[*,i],format='(f6.3)')
+  print, 'Observed - Convolved Counts'
+  for xx=0, nids-1 do begin
+    i=ids[xx]
+    print,spc_out.reg_nm[i],' ',string(cnt_obs[*,i]-cnt_pilecvl[*,i],format='(f6.3)')
+  endfor
 
+  print,'Confidence to reject null hypothesis'
+  ; null hypothesis = f-vth/isothermal is all there is in the observation
+  ; 1\sigma=0.8413, 2\sigma=0.9772, 3\sigma=0.9987
+  ; So need value >0.9987 to be 3\sigma confident we have something more than just f_vth
+  for xx=0, nids-1 do begin
+    i=ids[xx]
+    print,spc_out.reg_nm[i],' ',$
+      string(1-igamma(cnt_obs[*,i]-cnt_pilecvl[*,i],cnt_mod[*,i]),format='(f6.3)')
+  endfor
+
+  ;  print, 'Double shifted - IGH Scaling'
+  ;  for i=0, nr-1 do print,spc_out.reg_nm[i],' ',string(cnt_pile[*,i],format='(f6.3)')
+  ;
+  ;  print, 'Double shifted - DS Scaling'
+  ;  for i=0, nr-1 do print,spc_out.reg_nm[i],' ',string(cnt_pile2[*,i],format='(f6.3)')
+
+  ;  print, 'Convolved - DS Scaling'
+  ;  for i=0, nr-1 do print,spc_out.reg_nm[i],' ',string(cnt_pilecvl[*,i],format='(f6.3)')
 
   ; Plot it out if have new enough idl and no /noplot
   if (keyword_set(noplot) ne 1 and float(!version.release) ge 8.0) then begin
