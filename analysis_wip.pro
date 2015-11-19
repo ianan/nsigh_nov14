@@ -70,6 +70,13 @@ pro analysis_wip
   ; Figure 4
   plot_fitted_specs_p2
 
+  ; ################################################################
+  ; ################################################################
+  ; ################################################################
+  ; Default work out the limits
+  for i=0, 4 do mc_2ndvth_uplims,regid=i
+  for i=0, 4 do mc_2ndvth_uplims,regid=i,lime=6.0
+
 
   stop
 end

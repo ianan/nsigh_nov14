@@ -107,7 +107,7 @@ pro plot_fitted_specs_p1,plter=plter,de=de
       yrange=ylim,ytit='counts keV!U-1!N s!U-1!N',ytickf='exp1',$
       ;        yrange=ylim,ytit='counts s!U-1!N cm!U-2!N keV!U-1!N',ytickf='exp1',$
       title=pname+' '+rnm[i]
-    oplot,[1,10],[10.,10]/de/fit_out.exp ,lines=1,color=150
+;    oplot,[1,10],[10.,10]/de/fit_out.exp ,lines=1,color=150
     oploterr,fit_out.engs,fit_out.cnt_flx,fit_out.ecnt_flx,color=1,psym=10,thick=5,/nohat,errthick=3,errcolor=1
     ;oploterr,fit_out.engs,fit_out.cnt_flx,fit_out.ecnt_flx,color=1,psym=1,thick=4,/nohat,errthick=4,errcolor=1
     oplot,fit_out.engs,fit_out.cnt_flx_mod,color=1,thick=5
