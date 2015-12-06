@@ -25,6 +25,7 @@
 ;     18-Jul-14 fixed bugs found by LG and JCMO (HSH)
 ;     27-Jul-14, fixed bug found by AM and set output to J2000 by default (HSH)
 ;     31-Oct-14, added print statement (HSH)
+;     03-Dec-15, corrected HSH's wrong epoch as fraction of year (IGH)
 ;-
 
 function nustar_sunpoint, offset, time=time, epoch_from=epoch_from, $
@@ -35,7 +36,10 @@ function nustar_sunpoint, offset, time=time, epoch_from=epoch_from, $
   default, epoch_to, 2000.
   text = anytim(time,/ext)
   sunpos,julday(text[5],text[4],text[6],text[0],text[1],text[2]),ra,dec
-  epoch = 1.*text[6]+text[5]/12.+text[4]/365.
+;  epoch = 1.*text[6]+text[5]/12.+text[4]/365.
+  year=string(text[6],format='(i4)')
+  epoch=year+(anytim(time)-anytim('01-Jan-'+year))/(anytim('31-Dec-'+year+' 24:00')-anytim('01-Jan-'+year))
+  
   if keyword_set(epoch_from) then epoch = epoch_from
   pang = (pb0r(time))[0]/!radeg
   matrix = [[cos(pang),sin(pang)],[-sin(pang),cos(pang)]]
@@ -45,6 +49,7 @@ function nustar_sunpoint, offset, time=time, epoch_from=epoch_from, $
   ra1 = ra - xy1[0]/cos(dec/!radeg)
   ra = ra1 & dec = dec1
   ; FK5 defined on J2000
+
   precess,ra,dec,epoch,epoch_to
   if n_elements(note) eq 1 then begin
     format = '(a20,2f10.3,a20)'
